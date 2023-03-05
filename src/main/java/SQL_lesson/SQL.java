@@ -11,60 +11,61 @@ import java.util.InputMismatchException;
 import java.util.Scanner;
 
 public class SQL {
-    private static String URL = "jdbc:mysql://127.0.0.1:3306/tms";
-    private static String USERNAME = "root";
-    private static String PASSWORD = "root";
-    private static final Logger logger = LogManager.getLogger(Main.class);
+    private final String URL = "jdbc:mysql://127.0.0.1:3306/tms";
+    private final String USERNAME = "root";
+    private final String PASSWORD = "root";
 
+    private Connection con;
+    private final Logger logger = LogManager.getLogger(Main.class);
 
-    private static void init() {
+    private final String menu = "#######################################\n" +
+            "1: Вывести всю информацию о студентах" + "\n"
+            + "2: Поиск студента" + "\n"
+            + "3: Добавить студента в таблицу" + "\n"
+            + "4: Удалить студента" + "\n"
+            + "5: Выход\n" +
+            "#######################################";
+
+    private void init() {
         try {
             Class.forName("com.mysql.cj.jdbc.Driver").getDeclaredConstructor().newInstance();
-            System.out.println("Connection succesfull!");
+            logger.info("Connection succesfull!");
         } catch (Exception ex) {
-            System.out.println("Connection failed...");
-            System.out.println(ex);
+            logger.error("ОШИБКА");
+            logger.error("Connection failed...",ex);
         }
     }
 
-    private static Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(URL, USERNAME, PASSWORD);
+    private Connection getConnection() throws SQLException {
+        if(con==null || con.isClosed())
+            this.con= DriverManager.getConnection(URL, USERNAME, PASSWORD);
+        return this.con;
     }
 
-    static void workWithDB() throws SQLException {
+    void workWithDB() throws SQLException {
         init();
         getConnection();
         try {
             workWithQuery();
         } catch (IOException e) {
+
             throw new RuntimeException(e);
         }
     }
 
-    private static void workWithQuery() throws SQLException, IOException {
+    private void workWithQuery() throws SQLException, IOException {
         Connection con = getConnection();
         con.setAutoCommit(false);
         Scanner sc = new Scanner(System.in);
         Boolean work = true;
         try {
             while (work) {
-                System.out.println("#######################################");
-                System.out.println("1: Вывести всю информацию о студентах" + "\n"
-                        + "2: Поиск студента" + "\n"
-                        + "3: Добавить студента в таблицу" + "\n"
-                        + "4: Удалить студента" + "\n"
-                        + "5: Выход");
-                System.out.println("#######################################");
+                System.out.println(menu);
                 Integer choise = sc.nextInt();
                 Statement stmt = con.createStatement();
                 if (choise == 1) {
                     ResultSet rs = stmt.executeQuery("SELECT * FROM students");
-                    while (rs.next()) {
-                        String str = rs.getString("idStudents") + " " + rs.getString("FIO") + " "
-                                + rs.getString("City");
-                        System.out.println(str);
-                        logger.info("Список студентов: " + str);
-                    }
+                    printStudents(rs);
                     rs.close();
                 }
                 if (choise == 2) {
@@ -75,16 +76,7 @@ public class SQL {
                     PreparedStatement stm = con.prepareStatement(sql);
                     stm.setString(1, FIO);
                     ResultSet resultSet = stm.executeQuery();
-                    Boolean check = true;
-                    while (resultSet.next()) {
-                        Integer id = resultSet.getInt("idStudents");
-                        String name = resultSet.getString("FIO");
-                        String city = resultSet.getString("City");
-                        System.out.print(id + " " + name + " " + city + "\n");
-                        logger.info(id + " " + name + " " + city + "\n");
-                        check = false;
-                    }
-                    if (check) {
+                    if (printStudents(resultSet)) {
                         System.err.println("Такого пользователя не найдено.");
                         logger.info("Такого пользователя не найдено." + FIO);
                     }
@@ -100,14 +92,7 @@ public class SQL {
                         String FIO = bufferedReader.readLine();
                         System.out.print("Введите город студента: ");
                         String city = bufferedReader.readLine();
-                        String sql = "INSERT INTO students (idStudents, FIO, City) Values (?, ?, ?)";
-                        PreparedStatement stm = con.prepareStatement(sql);
-                        stm.setInt(1, id);
-                        stm.setString(2, FIO);
-                        stm.setString(3, city);
-                        stm.executeUpdate();
-                        con.commit();
-                        stm.close();
+                        addStudent(con, id, FIO, city);
                         System.out.println("OK");
                         logger.info("Пользователь добавлен: " + id + FIO + city);
                     } catch (SQLIntegrityConstraintViolationException | NumberFormatException exception) {
@@ -118,12 +103,7 @@ public class SQL {
                 if (choise == 4) {
                     System.out.print("Введите номер студента для удаления: ");
                     String id = sc.next();
-                    String sql = "DELETE FROM students where idStudents = ?";
-                    PreparedStatement stm = con.prepareStatement(sql);
-                    stm.setString(1, id);
-                    stm.executeUpdate();
-                    con.commit();
-                    stm.close();
+                    dellStudent(con, id);
                     System.out.println("OK");
                     logger.info("Пользватель удален: " + id);
                 }
@@ -135,5 +115,38 @@ public class SQL {
         } catch (InputMismatchException exception) {
             System.err.println("Ошибка ввода");
         }
+    }
+
+    private boolean printStudents(ResultSet rs) throws SQLException {
+        boolean isEmpty=true;
+        while (rs.next()) {
+            isEmpty=false;
+            String str = rs.getString("idStudents") + " "
+                    + rs.getString("FIO") + " "
+                    + rs.getString("City");
+            System.out.println(str);
+            logger.info("Список студентов: " + str);
+        }
+        return isEmpty;
+    }
+
+    private void dellStudent(Connection con, String id) throws SQLException {
+        String sql = "DELETE FROM students where idStudents = ?";
+        PreparedStatement stm = con.prepareStatement(sql);
+        stm.setString(1, id);
+        stm.executeUpdate();
+        con.commit();
+        stm.close();
+    }
+
+    private void addStudent(Connection con, Integer id, String FIO, String city) throws SQLException {
+        String sql = "INSERT INTO students (idStudents, FIO, City) Values (?, ?, ?)";
+        PreparedStatement stm = con.prepareStatement(sql);
+        stm.setInt(1, id);
+        stm.setString(2, FIO);
+        stm.setString(3, city);
+        stm.executeUpdate();
+        con.commit();
+        stm.close();
     }
 }
