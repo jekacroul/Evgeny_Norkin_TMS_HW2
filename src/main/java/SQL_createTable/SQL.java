@@ -32,6 +32,18 @@ public class SQL {
         displayBookPages();
     }
 
+    /*
+    private static Connection getConnection() throws SQLException {
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver").getDeclaredConstructor().newInstance();
+            logger.info("Connection succesfull!");
+        } catch (Exception ex) {
+            System.out.println("Connection failed...");
+            logger.error("Connection failed..." + ex);
+        }
+        return DriverManager.getConnection(URL, LOGIN, PASSWORD);
+    }
+     */
     private static void createTableAuthor() throws SQLException {
         Connection connection = null;
         Statement stm = null;
@@ -148,7 +160,7 @@ public class SQL {
             connection = getConnection(URL, LOGIN, PASSWORD);
             connection.setAutoCommit(false);
             stm = connection.createStatement();
-            rs = stm.executeQuery("select a1.name AS Author, a1.surname, a2.title AS Book from author a1\n" +
+            rs = stm.executeQuery("select DISTINCT a1.name AS Author, a1.surname, a2.title AS Book from author a1\n" +
                     "join book a2 on a1.id = a2.author_id\n" +
                     "where a2.pages > 100");
             while (rs.next()) {
